@@ -68,8 +68,9 @@ COPY --from=workspace-deps /out/${OPENCLAW_BUNDLED_PLUGIN_DIR}/ ./${OPENCLAW_BUN
 
 # Reduce OOM risk on low-memory hosts during dependency installation.
 # Docker builds on small VMs may otherwise fail with "Killed" (exit 137).
+# Increased to 4096MB to prevent resolution hangs with 1200+ dependencies on Node.js 24.
 RUN --mount=type=cache,id=openclaw-pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
-    NODE_OPTIONS=--max-old-space-size=2048 pnpm install --frozen-lockfile \
+    NODE_OPTIONS=--max-old-space-size=4096 pnpm install --frozen-lockfile --prefer-offline \
       --config.supportedArchitectures.os=linux \
       --config.supportedArchitectures.cpu="$(node -p 'process.arch')" \
       --config.supportedArchitectures.libc=glibc
@@ -113,8 +114,8 @@ RUN pnpm_config_verify_deps_before_run=false pnpm canvas:a2ui:bundle || \
 RUN NODE_OPTIONS=--max-old-space-size=8192 pnpm_config_verify_deps_before_run=false pnpm build:docker
 # Force pnpm for UI build (Bun may fail on ARM/Synology architectures)
 ENV OPENCLAW_PREFER_PNPM=1
-RUN pnpm_config_verify_deps_before_run=false pnpm ui:build
-RUN pnpm_config_verify_deps_before_run=false pnpm qa:lab:build
+RUN NODE_OPTIONS=--max-old-space-size=4096 pnpm_config_verify_deps_before_run=false pnpm ui:build
+RUN NODE_OPTIONS=--max-old-space-size=4096 pnpm_config_verify_deps_before_run=false pnpm qa:lab:build
 
 # Prune dev dependencies and strip build-only metadata before copying
 # runtime assets into the final image.
@@ -179,6 +180,13 @@ COPY --from=runtime-assets --chown=node:node /app/${OPENCLAW_BUNDLED_PLUGIN_DIR}
 COPY --from=runtime-assets --chown=node:node /app/skills ./skills
 COPY --from=runtime-assets --chown=node:node /app/docs ./docs
 COPY --from=runtime-assets --chown=node:node /app/qa ./qa
+
+# Copy workspace (SOUL.md, MEMORY.md) to the OpenClaw config directory
+# This ensures ALEX's identity and long-term memory are available when
+# no external volume is mounted. If a volume is mounted at runtime,
+# it will take precedence over these copied files.
+RUN mkdir -p /home/node/.openclaw/workspace && chown -R node:node /home/node/.openclaw/workspace
+COPY --from=runtime-assets --chown=node:node /app/workspace /home/node/.openclaw/workspace
 
 # Keep pnpm available in the runtime image for container-local workflows.
 # Use a shared Corepack home so the non-root `node` user does not need a
