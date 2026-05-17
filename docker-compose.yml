@@ -1,27 +1,17 @@
 services:
   alex-agent:
     build: .
-    container_name: alex-agent
+    container_name: alex_agent
+    restart: unless-stopped
     ports:
-      - "3001:3001"
+      - "3500:3500"
+    environment:
+      PORT: 3500
     env_file:
       - .env
     networks:
-      - alex-network
-
-  chromadb:
-    image: chromadb/chroma:latest
-    container_name: alex-chromadb
-    ports:
-      - "8000:8000"
-    volumes:
-      - chroma-data:/chroma/chroma
-    networks:
-      - alex-network
+      - alex_net
 
 networks:
-  alex-network:
-    driver: bridge
-
-volumes:
-  chroma-data:
+  alex_net:
+    external: true
