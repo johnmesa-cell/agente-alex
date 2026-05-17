@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ALEX — Panel de Administración</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem;
+    }
+
+    header {
+      width: 100%;
+      max-width: 800px;
+      margin-bottom: 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    header h1 {
+      font-size: 1.5rem;
+      color: #63b3ed;
+    }
+
+    header span {
+      font-size: 0.85rem;
+      color: #718096;
+    }
+
+    .card {
+      background: #1a1d27;
+      border: 1px solid #2d3748;
+      border-radius: 12px;
+      padding: 1.5rem;
+      width: 100%;
+      max-width: 800px;
+      margin-bottom: 1.5rem;
+    }
+
+    .card h2 {
+      font-size: 1rem;
+      color: #90cdf4;
+      margin-bottom: 1.25rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      margin-bottom: 1rem;
+    }
+
+    label {
+      font-size: 0.85rem;
+      color: #a0aec0;
+    }
+
+    input, select {
+      background: #2d3748;
+      border: 1px solid #4a5568;
+      border-radius: 8px;
+      color: #e2e8f0;
+      padding: 0.6rem 0.9rem;
+      font-size: 0.95rem;
+      width: 100%;
+      transition: border-color 0.2s;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: #63b3ed;
+    }
+
+    input[type="range"] {
+      padding: 0.3rem 0;
+      cursor: pointer;
+    }
+
+    .range-value {
+      font-size: 0.85rem;
+      color: #63b3ed;
+      font-weight: bold;
+    }
+
+    button {
+      background: #2b6cb0;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 0.65rem 1.5rem;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-top: 0.5rem;
+    }
+
+    button:hover { background: #3182ce; }
+
+    button.danger {
+      background: #c53030;
+    }
+
+    button.danger:hover { background: #e53e3e; }
+
+    .status-bar {
+      width: 100%;
+      max-width: 800px;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+      display: none;
+    }
+
+    .status-bar.success {
+      background: #1c4532;
+      border: 1px solid #276749;
+      color: #9ae6b4;
+      display: block;
+    }
+
+    .status-bar.error {
+      background: #742a2a;
+      border: 1px solid #9b2c2c;
+      color: #fed7d7;
+      display: block;
+    }
+
+    .sessions-list {
+      font-size: 0.85rem;
+      color: #a0aec0;
+      margin-top: 0.5rem;
+      line-height: 1.8;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    @media (max-width: 600px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>⚕️ ALEX Admin</h1>
+    <span>Panel de configuración — solo acceso interno</span>
+  </header>
+
+  <div class="status-bar" id="statusBar"></div>
+
+  <!-- Configuración del modelo -->
+  <div class="card">
+    <h2>🤖 Modelo de lenguaje</h2>
+    <div class="form-group">
+      <label>Modelo activo</label>
+      <select id="modelSelect">
+        <option value="llama-3.3-70b-versatile">Llama 3.3 70B (Groq)</option>
+        <option value="llama-3.1-8b-instant">Llama 3.1 8B Instant (Groq)</option>
+        <option value="mixtral-8x7b-32768">Mixtral 8x7B (Groq)</option>
+        <option value="deepseek-chat">DeepSeek V3</option>
+        <option value="deepseek-reasoner">DeepSeek R1</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Temperatura: <span class="range-value" id="tempValue">0.4</span></label>
+      <input type="range" id="temperature" min="0" max="1" step="0.05" value="0.4"
+        oninput="document.getElementById('tempValue').textContent = this.value" />
+    </div>
+
+    <div class="form-group">
+      <label>Máximo de tokens por respuesta</label>
+      <input type="number" id="maxTokens" value="1024" min="256" max="4096" step="256" />
+    </div>
+
+    <button onclick="updateModelConfig()">Guardar configuración del modelo</button>
+  </div>
+
+  <!-- API Keys -->
+  <div class="card">
+    <h2>🔑 API Keys</h2>
+    <div class="grid-2">
+      <div class="form-group">
+        <label>Groq API Key</label>
+        <input type="password" id="groqKey" placeholder="gsk_••••••••••••••••" />
+      </div>
+      <div class="form-group">
+        <label>DeepSeek API Key</label>
+        <input type="password" id="deepseekKey" placeholder="sk-••••••••••••••••" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Tavily API Key (búsqueda web)</label>
+      <input type="password" id="tavilyKey" placeholder="tvly-••••••••••••••••" />
+    </div>
+    <button onclick="updateApiKeys()">Actualizar API Keys</button>
+  </div>
+
+  <!-- Sesiones activas -->
+  <div class="card">
+    <h2>💬 Sesiones activas</h2>
+    <div class="sessions-list" id="sessionsList">Cargando sesiones...</div>
+    <br/>
+    <button class="danger" onclick="clearAllSessions()">Limpiar todas las sesiones</button>
+  </div>
+
+  <script>
+    const BASE = '';
+
+    async function updateModelConfig() {
+      const model = document.getElementById('modelSelect').value;
+      const temperature = parseFloat(document.getElementById('temperature').value);
+      const maxTokens = parseInt(document.getElementById('maxTokens').value);
+
+      await post('/admin/config', { model, temperature, maxTokens });
+    }
+
+    async function updateApiKeys() {
+      const groqKey = document.getElementById('groqKey').value;
+      const deepseekKey = document.getElementById('deepseekKey').value;
+      const tavilyKey = document.getElementById('tavilyKey').value;
+
+      await post('/admin/config', {
+        apiKey: groqKey || undefined,
+        deepseekApiKey: deepseekKey || undefined,
+        tavilyApiKey: tavilyKey || undefined
+      });
+
+      document.getElementById('groqKey').value = '';
+      document.getElementById('deepseekKey').value = '';
+      document.getElementById('tavilyKey').value = '';
+    }
+
+    async function loadSessions() {
+      try {
+        const res = await fetch('/admin/sessions');
+        const data = await res.json();
+        const list = document.getElementById('sessionsList');
+        if (data.sessions.length === 0) {
+          list.textContent = 'No hay sesiones activas en este momento.';
+        } else {
+          list.innerHTML = data.sessions.map(s => `• ${s}`).join('<br/>');
+        }
+      } catch {
+        document.getElementById('sessionsList').textContent = 'Error al cargar sesiones.';
+      }
+    }
+
+    async function clearAllSessions() {
+      if (!confirm('¿Seguro que deseas eliminar todas las sesiones activas?')) return;
+      await post('/admin/sessions/clear', {});
+      loadSessions();
+    }
+
+    async function post(url, body) {
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        showStatus(res.ok ? 'success' : 'error',
+          res.ok ? 'Configuración actualizada correctamente.' : data.error || 'Error desconocido.');
+      } catch (err) {
+        showStatus('error', 'Error de conexión con el agente.');
+      }
+    }
+
+    function showStatus(type, message) {
+      const bar = document.getElementById('statusBar');
+      bar.className = `status-bar ${type}`;
+      bar.textContent = message;
+      setTimeout(() => { bar.className = 'status-bar'; }, 4000);
+    }
+
+    loadSessions();
+    setInterval(loadSessions, 30000);
+  </script>
+
+</body>
+</html>

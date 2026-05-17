@@ -2,12 +2,21 @@
   "name": "alex-agent",
   "version": "1.0.0",
   "type": "module",
-  "description": "ALEX Agent",
+  "description": "ALEX - Agente de salud conversacional para primeros auxilios y consultas médicas",
   "main": "src/agent/index.js",
   "scripts": {
-    "start": "node src/agent/index.js"
+    "start": "node src/agent/index.js",
+    "dev": "node --watch src/agent/index.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC"
+  "dependencies": {
+    "chromadb": "^1.9.2",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "groq-sdk": "^0.3.3",
+    "openai": "^4.47.1",
+    "tavily": "^0.0.6"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
 }
