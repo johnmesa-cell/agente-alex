@@ -18,11 +18,14 @@ import {
 } from '../tools/chromadb.js';
 import { searchWeb } from '../tools/websearch.js';
 import { getModelConfig, updateModelConfig, getApiKeys } from '../config/modelConfig.js';
+import cookieParser from 'cookie-parser';
+import { requireAdmin } from '../middlewares/adminAuth.js';
 
 dotenv.config();
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
+app.use(cookieParser());
 app.use(express.static('admin'));
 
 // Inicializar clientes a partir de la configuración persistente
@@ -118,18 +121,15 @@ app.delete('/session/:sessionId', async (req, res) => {
 // ENDPOINTS ADMIN
 // ─────────────────────────────────────────
 
-// Panel visual
-app.get('/admin', (req, res) => {
+app.get('/admin', requireAdmin, (req, res) => {
   res.sendFile(process.cwd() + '/admin/index.html');
 });
 
-// Obtener sesiones activas
-app.get('/admin/sessions', (req, res) => {
+app.get('/admin/sessions', requireAdmin, (req, res) => {
   return res.json({ sessions: getActiveSessions() });
 });
 
-// Limpiar todas las sesiones
-app.post('/admin/sessions/clear', async (req, res) => {
+app.post('/admin/sessions/clear', requireAdmin, async (req, res) => {
   const sessions = getActiveSessions();
   for (const sessionId of sessions) {
     clearHistory(sessionId);
@@ -138,8 +138,7 @@ app.post('/admin/sessions/clear', async (req, res) => {
   return res.json({ message: `${sessions.length} sesiones eliminadas` });
 });
 
-// Actualizar configuración del modelo en caliente
-app.post('/admin/config', (req, res) => {
+app.post('/admin/config', requireAdmin, (req, res) => {
   try {
     const { model, temperature, maxTokens, fallbackModel, apiKeys } = req.body;
 
@@ -150,35 +149,23 @@ app.post('/admin/config', (req, res) => {
     if (fallbackModel !== undefined) updates.fallbackModel = fallbackModel;
     if (apiKeys) updates.apiKeys = apiKeys;
 
-    // Actualizar configuración persistente
     updateModelConfig(updates);
 
-    // Recrear clientes si las API keys fueron actualizadas
     if (apiKeys) {
-      if (apiKeys.groq) {
-        groq = new Groq({ apiKey: apiKeys.groq });
-      }
-      if (apiKeys.deepseek) {
-        deepseek = new OpenAI({ apiKey: apiKeys.deepseek, baseURL: 'https://api.deepseek.com' });
-      }
-      if (apiKeys.tavily) {
-        process.env.TAVILY_API_KEY = apiKeys.tavily;
-      }
+      if (apiKeys.groq) groq = new Groq({ apiKey: apiKeys.groq });
+      if (apiKeys.deepseek) deepseek = new OpenAI({ apiKey: apiKeys.deepseek, baseURL: 'https://api.deepseek.com' });
+      if (apiKeys.tavily) process.env.TAVILY_API_KEY = apiKeys.tavily;
       console.log('Clientes recreados con nuevas API keys');
     }
 
-    return res.json({
-      message: 'Configuración actualizada correctamente',
-      config: getModelConfig()
-    });
+    return res.json({ message: 'Configuración actualizada correctamente', config: getModelConfig() });
   } catch (error) {
     console.error('Error en POST /admin/config:', error);
     return res.status(500).json({ error: 'Error al actualizar configuración', details: error.message });
   }
 });
 
-// Obtener configuración actual del modelo
-app.get('/admin/config', (req, res) => {
+app.get('/admin/config', requireAdmin, (req, res) => {
   return res.json(getModelConfig());
 });
 
