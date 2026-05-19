@@ -13,8 +13,7 @@
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "groq-sdk": "^0.3.3",
-    "openai": "^4.47.1",
-    "tavily": "^0.0.6"
+    "openai": "^4.47.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"
