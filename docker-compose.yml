@@ -21,3 +21,4 @@ volumes:
 networks:
   alex_net:
     external: true
+    name: alex_alex_net  # ← agrega esta línea
