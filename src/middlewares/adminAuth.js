@@ -9,6 +9,9 @@ export const requireAdmin = async (req, res, next) => {
     if (!token && req.cookies?.alex_token) {
       token = req.cookies.alex_token;
     }
+    if (!token && req.query?.token) {
+      token = req.query.token;
+    }
 
     if (!token) {
       return res.status(401).json({ message: 'No autorizado. Inicia sesión en la plataforma principal.' });
