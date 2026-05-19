@@ -180,6 +180,17 @@
     </div>
 
     <div class="form-group">
+      <label>Modelo de fallback</label>
+      <select id="fallbackModelSelect">
+        <option value="llama-3.3-70b-versatile">Llama 3.3 70B (Groq)</option>
+        <option value="llama-3.1-8b-instant">Llama 3.1 8B Instant (Groq)</option>
+        <option value="mixtral-8x7b-32768">Mixtral 8x7B (Groq)</option>
+        <option value="deepseek-chat">DeepSeek V3</option>
+        <option value="deepseek-reasoner">DeepSeek R1</option>
+      </select>
+    </div>
+
+    <div class="form-group">
       <label>Temperatura: <span class="range-value" id="tempValue">0.4</span></label>
       <input type="range" id="temperature" min="0" max="1" step="0.05" value="0.4"
         oninput="document.getElementById('tempValue').textContent = this.value" />
@@ -224,12 +235,47 @@
   <script>
     const BASE = '';
 
+    /**
+     * Carga la configuración actual del servidor y actualiza los campos del formulario
+     */
+    async function loadConfig() {
+      try {
+        const res = await fetch('/admin/config');
+        const config = await res.json();
+
+        // Actualizar modelo activo
+        document.getElementById('modelSelect').value = config.model || 'llama-3.3-70b-versatile';
+
+        // Actualizar modelo de fallback
+        document.getElementById('fallbackModelSelect').value = config.fallbackModel || 'deepseek-chat';
+
+        // Actualizar temperatura
+        const temp = config.temperature || 0.4;
+        document.getElementById('temperature').value = temp;
+        document.getElementById('tempValue').textContent = temp;
+
+        // Actualizar max tokens
+        document.getElementById('maxTokens').value = config.maxTokens || 1024;
+
+        // Limpiar campos de API keys (nunca mostrar valores reales)
+        document.getElementById('groqKey').value = '';
+        document.getElementById('deepseekKey').value = '';
+        document.getElementById('tavilyKey').value = '';
+
+        console.log('Configuración cargada correctamente');
+      } catch (error) {
+        console.error('Error cargando configuración:', error);
+        showStatus('error', 'Error al cargar la configuración del servidor');
+      }
+    }
+
     async function updateModelConfig() {
       const model = document.getElementById('modelSelect').value;
+      const fallbackModel = document.getElementById('fallbackModelSelect').value;
       const temperature = parseFloat(document.getElementById('temperature').value);
       const maxTokens = parseInt(document.getElementById('maxTokens').value);
 
-      await post('/admin/config', { model, temperature, maxTokens });
+      await post('/admin/config', { model, fallbackModel, temperature, maxTokens });
     }
 
     async function updateApiKeys() {
@@ -237,12 +283,20 @@
       const deepseekKey = document.getElementById('deepseekKey').value;
       const tavilyKey = document.getElementById('tavilyKey').value;
 
-      await post('/admin/config', {
-        apiKey: groqKey || undefined,
-        deepseekApiKey: deepseekKey || undefined,
-        tavilyApiKey: tavilyKey || undefined
-      });
+      // Solo enviar las keys que fueron rellenadas
+      const apiKeys = {};
+      if (groqKey) apiKeys.groq = groqKey;
+      if (deepseekKey) apiKeys.deepseek = deepseekKey;
+      if (tavilyKey) apiKeys.tavily = tavilyKey;
 
+      if (Object.keys(apiKeys).length === 0) {
+        showStatus('error', 'Por favor ingresa al menos una API Key');
+        return;
+      }
+
+      await post('/admin/config', { apiKeys });
+
+      // Limpiar campos después de enviar
       document.getElementById('groqKey').value = '';
       document.getElementById('deepseekKey').value = '';
       document.getElementById('tavilyKey').value = '';
@@ -291,6 +345,8 @@
       setTimeout(() => { bar.className = 'status-bar'; }, 4000);
     }
 
+    // Cargar configuración y sesiones al iniciar
+    loadConfig();
     loadSessions();
     setInterval(loadSessions, 30000);
   </script>

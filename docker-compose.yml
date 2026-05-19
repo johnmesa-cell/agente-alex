@@ -9,8 +9,14 @@ services:
       PORT: 3500
     env_file:
       - .env
+    volumes:
+      - alex_agent_config:/app/config
     networks:
       - alex_net
+
+volumes:
+  alex_agent_config:
+    driver: local
 
 networks:
   alex_net:

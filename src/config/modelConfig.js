@@ -1,16 +1,20 @@
-// Configuración mutable del modelo — se puede actualizar en caliente desde el admin panel
-const config = {
-  model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-  temperature: parseFloat(process.env.GROQ_TEMPERATURE) || 0.4,
-  maxTokens: parseInt(process.env.GROQ_MAX_TOKENS) || 1024,
+import fs from 'fs';
+import path from 'path';
 
-  // Modelo de fallback cuando Groq no está disponible
-  fallback: {
-    model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
-    apiKey: process.env.DEEPSEEK_API_KEY
+const CONFIG_DIR = '/app/config';
+const CONFIG_FILE = path.join(CONFIG_DIR, 'settings.json');
+
+// Configuración por defecto
+const defaultConfig = {
+  model: 'llama-3.3-70b-versatile',
+  temperature: 0.4,
+  maxTokens: 1024,
+  fallbackModel: 'deepseek-chat',
+  apiKeys: {
+    groq: '',
+    deepseek: '',
+    tavily: ''
   },
-
-  // Modelos disponibles para seleccionar desde el admin panel
   availableModels: [
     { id: 'llama-3.3-70b-versatile', provider: 'groq', label: 'Llama 3.3 70B (Groq)' },
     { id: 'llama-3.1-8b-instant', provider: 'groq', label: 'Llama 3.1 8B Instant (Groq)' },
@@ -20,21 +24,104 @@ const config = {
   ]
 };
 
+// Cargar configuración desde settings.json o crear si no existe
+function loadConfig() {
+  try {
+    // Asegurar que el directorio existe
+    if (!fs.existsSync(CONFIG_DIR)) {
+      fs.mkdirSync(CONFIG_DIR, { recursive: true });
+    }
+
+    // Si el archivo existe, leerlo
+    if (fs.existsSync(CONFIG_FILE)) {
+      const data = fs.readFileSync(CONFIG_FILE, 'utf8');
+      return JSON.parse(data);
+    }
+
+    // Si no existe, crear uno con los valores por defecto
+    saveConfig(defaultConfig);
+    return { ...defaultConfig };
+  } catch (error) {
+    console.error('Error cargando configuración:', error);
+    return { ...defaultConfig };
+  }
+}
+
+let config = loadConfig();
+
 /**
  * Retorna la configuración actual del modelo
  * @returns {object}
  */
 export function getModelConfig() {
-  return config;
+  return {
+    model: config.model,
+    temperature: config.temperature,
+    maxTokens: config.maxTokens,
+    fallbackModel: config.fallbackModel,
+    apiKeys: {
+      groq: maskApiKey(config.apiKeys?.groq),
+      deepseek: maskApiKey(config.apiKeys?.deepseek),
+      tavily: maskApiKey(config.apiKeys?.tavily)
+    },
+    availableModels: config.availableModels
+  };
 }
 
 /**
- * Actualiza la configuración del modelo en caliente
+ * Enmascara una API key para mostrar solo los últimos 4 caracteres
+ * @param {string} key
+ * @returns {string}
+ */
+function maskApiKey(key) {
+  if (!key || typeof key !== 'string' || key.length < 4) {
+    return '••••••••••••••••';
+  }
+  return '•'.repeat(Math.max(16, key.length - 4)) + key.slice(-4);
+}
+
+/**
+ * Actualiza y persiste la configuración del modelo en settings.json
  * @param {Partial<typeof config>} updates
  */
 export function updateModelConfig(updates) {
   if (updates.model !== undefined) config.model = updates.model;
   if (updates.temperature !== undefined) config.temperature = parseFloat(updates.temperature);
   if (updates.maxTokens !== undefined) config.maxTokens = parseInt(updates.maxTokens);
-  if (updates.fallback !== undefined) config.fallback = { ...config.fallback, ...updates.fallback };
+  if (updates.fallbackModel !== undefined) config.fallbackModel = updates.fallbackModel;
+  
+  // Actualizar API keys si se proporcionan
+  if (updates.apiKeys) {
+    config.apiKeys = config.apiKeys || {};
+    if (updates.apiKeys.groq !== undefined) config.apiKeys.groq = updates.apiKeys.groq;
+    if (updates.apiKeys.deepseek !== undefined) config.apiKeys.deepseek = updates.apiKeys.deepseek;
+    if (updates.apiKeys.tavily !== undefined) config.apiKeys.tavily = updates.apiKeys.tavily;
+  }
+
+  // Persistir a disco
+  saveConfig(config);
+}
+
+/**
+ * Obtiene las API keys sin enmascarar (solo para uso interno)
+ * @returns {object}
+ */
+export function getApiKeys() {
+  return config.apiKeys || { groq: '', deepseek: '', tavily: '' };
+}
+
+/**
+ * Guarda la configuración en settings.json
+ * @param {object} data
+ */
+function saveConfig(data) {
+  try {
+    if (!fs.existsSync(CONFIG_DIR)) {
+      fs.mkdirSync(CONFIG_DIR, { recursive: true });
+    }
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(data, null, 2), 'utf8');
+    console.log('Configuración guardada en:', CONFIG_FILE);
+  } catch (error) {
+    console.error('Error guardando configuración:', error);
+  }
 }

@@ -17,7 +17,7 @@ import {
   clearUserUploads
 } from '../tools/chromadb.js';
 import { searchWeb } from '../tools/websearch.js';
-import { getModelConfig, updateModelConfig } from '../config/modelConfig.js';
+import { getModelConfig, updateModelConfig, getApiKeys } from '../config/modelConfig.js';
 
 dotenv.config();
 
@@ -25,10 +25,11 @@ const app = express();
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static('admin'));
 
-// Clientes de modelos
-let groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+// Inicializar clientes a partir de la configuración persistente
+const apiKeys = getApiKeys();
+let groq = new Groq({ apiKey: apiKeys.groq || '' });
 let deepseek = new OpenAI({
-  apiKey: process.env.DEEPSEEK_API_KEY,
+  apiKey: apiKeys.deepseek || '',
   baseURL: 'https://api.deepseek.com'
 });
 
@@ -139,25 +140,41 @@ app.post('/admin/sessions/clear', async (req, res) => {
 
 // Actualizar configuración del modelo en caliente
 app.post('/admin/config', (req, res) => {
-  const { model, temperature, maxTokens, apiKey, deepseekApiKey, tavilyApiKey } = req.body;
+  try {
+    const { model, temperature, maxTokens, fallbackModel, apiKeys } = req.body;
 
-  updateModelConfig({ model, temperature, maxTokens });
+    const updates = {};
+    if (model !== undefined) updates.model = model;
+    if (temperature !== undefined) updates.temperature = temperature;
+    if (maxTokens !== undefined) updates.maxTokens = maxTokens;
+    if (fallbackModel !== undefined) updates.fallbackModel = fallbackModel;
+    if (apiKeys) updates.apiKeys = apiKeys;
 
-  if (apiKey) {
-    process.env.GROQ_API_KEY = apiKey;
-    groq = new Groq({ apiKey });
+    // Actualizar configuración persistente
+    updateModelConfig(updates);
+
+    // Recrear clientes si las API keys fueron actualizadas
+    if (apiKeys) {
+      if (apiKeys.groq) {
+        groq = new Groq({ apiKey: apiKeys.groq });
+      }
+      if (apiKeys.deepseek) {
+        deepseek = new OpenAI({ apiKey: apiKeys.deepseek, baseURL: 'https://api.deepseek.com' });
+      }
+      if (apiKeys.tavily) {
+        process.env.TAVILY_API_KEY = apiKeys.tavily;
+      }
+      console.log('Clientes recreados con nuevas API keys');
+    }
+
+    return res.json({
+      message: 'Configuración actualizada correctamente',
+      config: getModelConfig()
+    });
+  } catch (error) {
+    console.error('Error en POST /admin/config:', error);
+    return res.status(500).json({ error: 'Error al actualizar configuración', details: error.message });
   }
-
-  if (deepseekApiKey) {
-    process.env.DEEPSEEK_API_KEY = deepseekApiKey;
-    deepseek = new OpenAI({ apiKey: deepseekApiKey, baseURL: 'https://api.deepseek.com' });
-  }
-
-  if (tavilyApiKey) {
-    process.env.TAVILY_API_KEY = tavilyApiKey;
-  }
-
-  return res.json({ message: 'Configuración actualizada', config: getModelConfig() });
 });
 
 // Obtener configuración actual del modelo
@@ -192,7 +209,7 @@ async function callModelWithFallback(systemPrompt, history, message) {
   // Fallback a DeepSeek
   try {
     const response = await deepseek.chat.completions.create({
-      model: config.fallback.model,
+      model: config.fallbackModel,
       temperature: config.temperature,
       max_tokens: config.maxTokens,
       messages: [
