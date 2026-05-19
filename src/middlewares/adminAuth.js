@@ -11,13 +11,9 @@ export const requireAdmin = async (req, res, next) => {
     }
 
     if (!token) {
-      if (req.headers.accept?.includes('text/html')) {
-        return res.redirect('/admin/login');
-      }
-      return res.status(401).json({ message: 'No autorizado' });
+      return res.status(401).json({ message: 'No autorizado. Inicia sesión en la plataforma principal.' });
     }
 
-    // Delegar validación completa al backend principal
     const response = await fetch(`${process.env.BACKEND_URL}/api/admin/dashboard`, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -26,13 +22,10 @@ export const requireAdmin = async (req, res, next) => {
     });
 
     if (!response.ok) {
-      if (req.headers.accept?.includes('text/html')) {
-        return res.redirect('/admin/login');
-      }
       return res.status(response.status).json({ 
         message: response.status === 403 
           ? 'Se requiere rol de administrador' 
-          : 'Sesión inválida o expirada' 
+          : 'Sesión inválida o expirada'
       });
     }
 
