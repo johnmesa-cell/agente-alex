@@ -235,12 +235,20 @@
   <script>
     const BASE = '';
 
+    // Leer token del query param de la URL actual
+    const TOKEN = new URLSearchParams(window.location.search).get('token') || '';
+
+    function authFetch(url, options = {}) {
+      const sep = url.includes('?') ? '&' : '?';
+      return fetch(TOKEN ? `${url}${sep}token=${TOKEN}` : url, options);
+    }
+
     /**
      * Carga la configuración actual del servidor y actualiza los campos del formulario
      */
     async function loadConfig() {
       try {
-        const res = await fetch('/admin/config');
+        const res = await authFetch('/admin/config');
         const config = await res.json();
 
         // Actualizar modelo activo
@@ -304,7 +312,7 @@
 
     async function loadSessions() {
       try {
-        const res = await fetch('/admin/sessions');
+        const res = await authFetch('/admin/sessions');
         const data = await res.json();
         const list = document.getElementById('sessionsList');
         if (data.sessions.length === 0) {
@@ -325,7 +333,7 @@
 
     async function post(url, body) {
       try {
-        const res = await fetch(url, {
+        const res = await authFetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body)
