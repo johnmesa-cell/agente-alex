@@ -1,5 +1,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
+import os from 'os';
 import Groq from 'groq-sdk';
 import OpenAI from 'openai';
 import { classifyIntent } from '../classifier/intentClassifier.js';
@@ -169,6 +170,27 @@ app.get('/admin/config', requireAdmin, (req, res) => {
   return res.json(getModelConfig());
 });
 
+// NUEVO: Información del sistema (CPU, memoria, uptime)
+app.get('/admin/system', requireAdmin, (req, res) => {
+  const mem = process.memoryUsage();
+  return res.json({
+    uptime: Math.floor(process.uptime()),
+    platform: process.platform,
+    nodeVersion: process.version,
+    memory: {
+      rss: Math.round(mem.rss / 1024 / 1024),
+      heapUsed: Math.round(mem.heapUsed / 1024 / 1024),
+      heapTotal: Math.round(mem.heapTotal / 1024 / 1024)
+    },
+    os: {
+      totalMemMB: Math.round(os.totalmem() / 1024 / 1024),
+      freeMemMB: Math.round(os.freemem() / 1024 / 1024),
+      cpus: os.cpus().length,
+      loadAvg: os.loadavg()
+    }
+  });
+});
+
 // ─────────────────────────────────────────
 // LÓGICA INTERNA
 // ─────────────────────────────────────────
@@ -221,31 +243,13 @@ function buildSystemPrompt(intent, userName, knowledgeContext, webContext) {
       ? `\n\nINFORMACIÓN COMPLEMENTARIA DE INTERNET:\n${webContext}`
       : '';
 
-  const base = `Eres ALEX, un asistente de salud conversacional diseñado para ayudar a personas sin conocimientos médicos.
-Tu nombre es ALEX. El usuario se llama ${name}.
-Siempre hablas en español, con lenguaje simple, claro y sin tecnicismos médicos.
-Nunca reemplazas a un médico y siempre que sea necesario lo aclaras.
-${context}`;
+  const base = `Eres ALEX, un asistente de salud conversacional diseñado para ayudar a personas sin conocimientos médicos.\nTu nombre es ALEX. El usuario se llama ${name}.\nSiempre hablas en español, con lenguaje simple, claro y sin tecnicismos médicos.\nNunca reemplazas a un médico y siempre que sea necesario lo aclaras.\n${context}`;
 
   if (intent === 'emergency') {
-    return `${base}
-
-MODO EMERGENCIA ACTIVO:
-- Guía al usuario paso a paso. Una instrucción a la vez.
-- Espera confirmación antes de dar el siguiente paso.
-- Adapta cada paso según lo que el usuario te reporte.
-- Desde tu primer mensaje indica claramente que debe llamar al 123 (emergencias) o al 106 (crisis de salud mental).
-- Mantén un tono calmante pero urgente.
-- Continúa acompañando al usuario hasta que confirme que llegó personal de emergencias.
-- Cuando el usuario confirme que llegó ayuda profesional, despídete indicando que ya está en buenas manos.`;
+    return `${base}\n\nMODO EMERGENCIA ACTIVO:\n- Guía al usuario paso a paso. Una instrucción a la vez.\n- Espera confirmación antes de dar el siguiente paso.\n- Adapta cada paso según lo que el usuario te reporte.\n- Desde tu primer mensaje indica claramente que debe llamar al 123 (emergencias) o al 106 (crisis de salud mental).\n- Mantén un tono calmante pero urgente.\n- Continúa acompañando al usuario hasta que confirme que llegó personal de emergencias.\n- Cuando el usuario confirme que llegó ayuda profesional, despídete indicando que ya está en buenas manos.`;
   }
 
-  return `${base}
-
-MODO CONSULTA:
-- Responde de forma completa y clara en un solo mensaje.
-- Usa lenguaje simple, sin términos médicos complejos.
-- Al final de tu respuesta siempre incluye: "Recuerda que soy un asistente de IA y puedo cometer errores. Para mayor seguridad, consulta a un profesional de salud."`;
+  return `${base}\n\nMODO CONSULTA:\n- Responde de forma completa y clara en un solo mensaje.\n- Usa lenguaje simple, sin términos médicos complejos.\n- Al final de tu respuesta siempre incluye: "Recuerda que soy un asistente de IA y puedo cometer errores. Para mayor seguridad, consulta a un profesional de salud."`;
 }
 
 // ─────────────────────────────────────────
