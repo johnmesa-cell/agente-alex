@@ -1,6 +1,9 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import os from 'os';
+import http from 'http';
+import { WebSocketServer } from 'ws';
+import WebSocket from 'ws';
 import Groq from 'groq-sdk';
 import OpenAI from 'openai';
 import { classifyIntent } from '../classifier/intentClassifier.js';
@@ -256,8 +259,111 @@ function buildSystemPrompt(intent, userName, knowledgeContext, webContext) {
 // INICIO DEL SERVIDOR
 // ─────────────────────────────────────────
 
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
+const PORT = process.env.PORT || 3500;
+const server = http.createServer(app);
+
+// WebSocket server para proxy de voz en tiempo real
+// Solo acepta conexiones que vengan del backend de Alex
+const wss = new WebSocketServer({ noServer: true });
+
+server.on('upgrade', (req, socket, head) => {
+  const pathname = new URL(req.url, `http://${req.headers.host}`).pathname;
+  const fromBackend = req.headers['x-from-backend'];
+  const expectedOrigin = process.env.BACKEND_ORIGIN;
+
+  if (pathname === '/admin/live') {
+    // Validar header de autenticación interna
+    if (!fromBackend || fromBackend !== 'true') {
+      socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+    // Validar origin si está configurado
+    if (expectedOrigin && req.headers.origin && req.headers.origin !== expectedOrigin) {
+      socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      wss.emit('connection', ws, req);
+    });
+  } else {
+    socket.destroy();
+  }
+});
+
+const SESSION_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutos para controlar costos ~$0.04/min
+
+wss.on('connection', (clientWs) => {
+  console.log('🎙️ Conexión WebSocket /admin/live abierta');
+
+  // Leer la key en tiempo real desde config (puede haber sido actualizada desde el panel)
+  const realtimeKey = getApiKeys().openaiRealtimeKey || process.env.OPENAI_REALTIME_KEY || '';
+
+  if (!realtimeKey) {
+    clientWs.close(1011, 'OPENAI_REALTIME_KEY no configurada');
+    console.warn('⚠️ Se intentó abrir sesión de voz sin OPENAI_REALTIME_KEY configurada');
+    return;
+  }
+
+  // Abrir conexión hacia OpenAI Realtime API
+  // Modelo correcto para esta funcionalidad prototipo: gpt-realtime-2
+  const openaiWs = new WebSocket(
+    'wss://api.openai.com/v1/realtime?model=gpt-realtime-2',
+    {
+      headers: {
+        'Authorization': `Bearer ${realtimeKey}`,
+        'OpenAI-Beta': 'realtime=v1'
+      }
+    }
+  );
+
+  // Timeout automático de 10 minutos para controlar costos
+  const sessionTimer = setTimeout(() => {
+    console.log('⏱️ Sesión de voz expirada por timeout de 10 minutos');
+    clientWs.close(1000, 'Session timeout');
+    openaiWs.close();
+  }, SESSION_TIMEOUT_MS);
+
+  // Proxy bidireccional: backend-Alex → OpenAI
+  clientWs.on('message', (data) => {
+    if (openaiWs.readyState === WebSocket.OPEN) {
+      openaiWs.send(data);
+    }
+  });
+
+  // Proxy bidireccional: OpenAI → backend-Alex
+  openaiWs.on('message', (data) => {
+    if (clientWs.readyState === WebSocket.OPEN) {
+      clientWs.send(data);
+    }
+  });
+
+  openaiWs.on('error', (err) => {
+    console.error('❌ Error WebSocket OpenAI Realtime:', err.message);
+    clientWs.close(1011, 'Error en conexión con OpenAI');
+  });
+
+  openaiWs.on('open', () => {
+    console.log('✅ Conexión con OpenAI Realtime API establecida');
+  });
+
+  clientWs.on('close', () => {
+    clearTimeout(sessionTimer);
+    openaiWs.close();
+    console.log('🔇 Sesión de voz cerrada por el cliente');
+  });
+
+  openaiWs.on('close', () => {
+    clearTimeout(sessionTimer);
+    if (clientWs.readyState === WebSocket.OPEN) {
+      clientWs.close();
+    }
+  });
+});
+
+server.listen(PORT, () => {
   console.log(`✅ ALEX Agent corriendo en puerto ${PORT}`);
   console.log(`🔧 Panel admin disponible en /admin`);
+  console.log(`🎙️ WebSocket /admin/live disponible`);
 });

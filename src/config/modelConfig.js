@@ -13,7 +13,8 @@ const defaultConfig = {
   apiKeys: {
     groq: '',
     deepseek: '',
-    tavily: ''
+    tavily: '',
+    openaiRealtimeKey: ''
   },
   availableModels: [
     { id: 'llama-3.3-70b-versatile', provider: 'groq', label: 'Llama 3.3 70B (Groq)' },
@@ -62,7 +63,8 @@ export function getModelConfig() {
     apiKeys: {
       groq: maskApiKey(config.apiKeys?.groq),
       deepseek: maskApiKey(config.apiKeys?.deepseek),
-      tavily: maskApiKey(config.apiKeys?.tavily)
+      tavily: maskApiKey(config.apiKeys?.tavily),
+      openaiRealtimeKey: maskApiKey(config.apiKeys?.openaiRealtimeKey)
     },
     availableModels: config.availableModels
   };
@@ -96,6 +98,8 @@ export function updateModelConfig(updates) {
     if (updates.apiKeys.groq !== undefined) config.apiKeys.groq = updates.apiKeys.groq;
     if (updates.apiKeys.deepseek !== undefined) config.apiKeys.deepseek = updates.apiKeys.deepseek;
     if (updates.apiKeys.tavily !== undefined) config.apiKeys.tavily = updates.apiKeys.tavily;
+    if (updates.apiKeys.openaiRealtimeKey !== undefined)
+      config.apiKeys.openaiRealtimeKey = updates.apiKeys.openaiRealtimeKey;
   }
 
   // Persistir a disco
@@ -107,7 +111,7 @@ export function updateModelConfig(updates) {
  * @returns {object}
  */
 export function getApiKeys() {
-  return config.apiKeys || { groq: '', deepseek: '', tavily: '' };
+  return config.apiKeys || { groq: '', deepseek: '', tavily: '', openaiRealtimeKey: '' };
 }
 
 /**
