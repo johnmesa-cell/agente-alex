@@ -221,6 +221,10 @@
       <label>Tavily API Key (búsqueda web)</label>
       <input type="password" id="tavilyKey" placeholder="tvly-••••••••••••••••" />
     </div>
+    <div class="form-group">
+      <label>OpenAI Realtime API Key (voz en tiempo real)</label>
+      <input type="password" id="openaiRealtimeKey" placeholder="sk-••••••••••••••••" />
+    </div>
     <button onclick="updateApiKeys()">Actualizar API Keys</button>
   </div>
 
@@ -290,12 +294,14 @@
       const groqKey = document.getElementById('groqKey').value;
       const deepseekKey = document.getElementById('deepseekKey').value;
       const tavilyKey = document.getElementById('tavilyKey').value;
+      const openaiRealtimeKey = document.getElementById('openaiRealtimeKey').value;
 
       // Solo enviar las keys que fueron rellenadas
       const apiKeys = {};
       if (groqKey) apiKeys.groq = groqKey;
       if (deepseekKey) apiKeys.deepseek = deepseekKey;
       if (tavilyKey) apiKeys.tavily = tavilyKey;
+      if (openaiRealtimeKey) apiKeys.openaiRealtimeKey = openaiRealtimeKey;
 
       if (Object.keys(apiKeys).length === 0) {
         showStatus('error', 'Por favor ingresa al menos una API Key');
@@ -308,6 +314,7 @@
       document.getElementById('groqKey').value = '';
       document.getElementById('deepseekKey').value = '';
       document.getElementById('tavilyKey').value = '';
+      document.getElementById('openaiRealtimeKey').value = '';
     }
 
     async function loadSessions() {
